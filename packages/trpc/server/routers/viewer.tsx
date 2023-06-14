@@ -657,19 +657,19 @@ const loggedInViewerRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { user, prisma } = ctx;
+
       const data: Prisma.UserUpdateInput = {
         ...input,
         metadata: input.metadata as Prisma.InputJsonValue,
       };
 
       // Add new emails to the Emails table
-
-      if (user.emails.length === 0) {
+      if (input.emails && user.emails.length === 0) {
         data.emails = {
           createMany: {
             data: [
               { email: user.email, isVerified: true, isPrimary: true },
-              ...input.emails.map((email) => ({
+              ...input?.emails.map((email) => ({
                 email: email.email,
                 isPrimary: email.isPrimary,
                 isVerified: email.isVerified,
@@ -677,10 +677,12 @@ const loggedInViewerRouter = router({
             ],
           },
         };
-      } else {
+      }
+
+      if (input.emails && user.emails.length > 0) {
         data.emails = {
           createMany: {
-            data: input.emails
+            data: input?.emails
               .filter((email) => !user.emails.some((userEmail) => userEmail.email === email.email))
               .map((email) => ({
                 email: email.email,
@@ -795,9 +797,17 @@ const loggedInViewerRouter = router({
           metadata: true,
           name: true,
           createdDate: true,
-          emails: true,
+          emails: {
+            select: {
+              email: true,
+              isPrimary: true,
+              isVerified: true,
+            },
+          },
         },
       });
+
+      console.dir(updatedUser);
 
       // Sync Services
       await syncServicesUpdateWebUser(updatedUser);

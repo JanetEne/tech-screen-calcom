@@ -511,6 +511,8 @@ const ProfileForm = ({
                 color="primary"
                 onClick={() => {
                   setAddEmailOpen(false);
+                  setIsNextStep(false);
+                  setEmail("");
                   setEmailList([...emailList, { email: email, isVerified: false, isPrimary: false }]);
                 }}>
                 {t("done")}
