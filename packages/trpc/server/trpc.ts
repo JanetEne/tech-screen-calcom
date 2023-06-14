@@ -26,6 +26,16 @@ async function getUserFromSession({ session }: { session: Maybe<Session> }) {
       username: true,
       name: true,
       email: true,
+      emails: {
+        select: {
+          email: true,
+          isPrimary: true,
+          isVerified: true,
+        },
+        orderBy: {
+          id: "asc",
+        },
+      },
       bio: true,
       timeZone: true,
       weekStart: true,

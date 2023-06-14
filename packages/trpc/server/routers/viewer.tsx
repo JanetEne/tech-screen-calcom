@@ -201,6 +201,7 @@ const loggedInViewerRouter = router({
       name: user.name,
       username: user.username,
       email: user.email,
+      emails: user.emails,
       startTime: user.startTime,
       endTime: user.endTime,
       bufferTime: user.bufferTime,
@@ -643,6 +644,15 @@ const loggedInViewerRouter = router({
         timeFormat: z.number().optional(),
         disableImpersonation: z.boolean().optional(),
         metadata: userMetadata.optional(),
+        emails: z
+          .array(
+            z.object({
+              email: z.string(),
+              isPrimary: z.boolean().optional(),
+              isVerified: z.boolean().optional(),
+            })
+          )
+          .optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -651,6 +661,69 @@ const loggedInViewerRouter = router({
         ...input,
         metadata: input.metadata as Prisma.InputJsonValue,
       };
+
+      // Add new emails to the Emails table
+
+      if (user.emails.length === 0) {
+        data.emails = {
+          createMany: {
+            data: [
+              { email: user.email, isVerified: true, isPrimary: true },
+              ...input.emails.map((email) => ({
+                email: email.email,
+                isPrimary: email.isPrimary,
+                isVerified: email.isVerified,
+              })),
+            ],
+          },
+        };
+      } else {
+        data.emails = {
+          createMany: {
+            data: input.emails
+              .filter((email) => !user.emails.some((userEmail) => userEmail.email === email.email))
+              .map((email) => ({
+                email: email.email,
+                isPrimary: email.isPrimary,
+                isVerified: email.isVerified,
+              })),
+          },
+        };
+      }
+
+      // Change which email address is my primary email by Update existing emails in the Emails table
+      if (
+        input.emails &&
+        input.emails.some((email) => email.isPrimary) &&
+        user.emails.some(
+          (email) => email.isPrimary && email.email !== input.emails.find((e) => e.isPrimary)?.email
+        )
+      ) {
+        data.emails = {
+          updateMany: [
+            {
+              where: { email: user.emails.find((email) => email.isPrimary)?.email },
+              data: { isPrimary: false },
+            },
+            {
+              where: { email: input.emails.find((e) => e.isPrimary)?.email },
+              data: { isPrimary: true },
+            },
+          ],
+        };
+      }
+
+      // Delete an email from the Emails table
+      if (input.emails && input.emails.length !== user.emails.length) {
+        data.emails = {
+          deleteMany: {
+            NOT: {
+              email: { in: input.emails.map((email) => email.email) },
+            },
+          },
+        };
+      }
+
       let isPremiumUsername = false;
       if (input.username) {
         const username = slugify(input.username);
@@ -722,6 +795,7 @@ const loggedInViewerRouter = router({
           metadata: true,
           name: true,
           createdDate: true,
+          emails: true,
         },
       });
 

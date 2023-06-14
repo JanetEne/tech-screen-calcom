@@ -1695,5 +1695,11 @@
   "clear_filters": "Clear Filters",
   "insights": "Insights",
   "insights_no_data_found_for_filter": "No data found for the selected filter or selected dates.",
-  "email_invite_team": "{{email}} has been invited"
+  "email_invite_team": "{{email}} has been invited",
+  "add_email": "Add Email",
+  "confirm_add_email": "Add an email address to replace your primary or to use as an alternative email on your event types.",
+  "confirm_email": "Confirm your email",
+  "email_confirmation": "We sent an email to {{email}}. Click the link in the email to verify this address.",
+  "primary": "Primary",
+  "unverified": "Unverified"
 }

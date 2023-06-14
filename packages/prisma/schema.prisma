@@ -143,12 +143,22 @@ enum UserPermissionRole {
   ADMIN
 }
 
+model Emails {
+  id         Int         @id @default(autoincrement())
+  email      String      @unique
+  user       User?       @relation(fields: [userId], references: [id])
+  userId     Int
+  isPrimary  Boolean     @default(false)
+  isVerified Boolean     @default(false)
+}
+
 model User {
   id                   Int                     @id @default(autoincrement())
   username             String?                 @unique
   name                 String?
   /// @zod.email()
   email                String                  @unique
+  emails               Emails[]
   emailVerified        DateTime?
   password             String?
   bio                  String?

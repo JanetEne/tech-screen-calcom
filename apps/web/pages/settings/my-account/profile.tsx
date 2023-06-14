@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { IdentityProvider } from "@prisma/client";
 import { signOut } from "next-auth/react";
 import type { BaseSyntheticEvent } from "react";
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -37,9 +37,24 @@ import {
   SkeletonText,
   TextField,
   Editor,
+  DialogHeader,
+  Dropdown,
+  DropdownItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "@calcom/ui";
-import { FiAlertTriangle, FiTrash2 } from "@calcom/ui/components/icon";
+import {
+  FiAlertTriangle,
+  FiFlag,
+  FiMail,
+  FiMoreHorizontal,
+  FiPlus,
+  FiTrash,
+  FiTrash2,
+} from "@calcom/ui/components/icon";
 
+import EmailListCard from "@components/EmailListCard";
 import TwoFactor from "@components/auth/TwoFactor";
 import { UsernameAvailabilityField } from "@components/ui/UsernameAvailability";
 
@@ -66,12 +81,19 @@ interface DeleteAccountValues {
   totpCode: string;
 }
 
+interface Emails {
+  email: string;
+  isVerified: boolean;
+  isPrimary: boolean;
+}
+
 type FormValues = {
   username: string;
   avatar: string;
   name: string;
   email: string;
   bio: string;
+  emails: Emails[];
 };
 
 const ProfileView = () => {
@@ -194,6 +216,7 @@ const ProfileView = () => {
     name: user.name || "",
     email: user.email || "",
     bio: user.bio || "",
+    emails: user.emails || [],
   };
 
   return (
@@ -319,6 +342,10 @@ const ProfileForm = ({
   extraField?: React.ReactNode;
 }) => {
   const { t } = useLocale();
+  const [addEmailOpen, setAddEmailOpen] = useState(false);
+  const [isNextStep, setIsNextStep] = useState<boolean>(false);
+  const [emailList, setEmailList] = useState(defaultValues.emails || []);
+  const [email, setEmail] = useState("");
 
   const profileFormSchema = z.object({
     username: z.string(),
@@ -331,6 +358,13 @@ const ProfileForm = ({
       }),
     email: z.string().email(),
     bio: z.string(),
+    emails: z.array(
+      z.object({
+        email: z.string(),
+        isPrimary: z.boolean().optional(),
+        isVerified: z.boolean().optional(),
+      })
+    ),
   });
 
   const formMethods = useForm<FormValues>({
@@ -343,6 +377,40 @@ const ProfileForm = ({
   } = formMethods;
 
   const isDisabled = isSubmitting || !isDirty;
+
+  const makePrimaryEmail = (email: Emails) => {
+    setEmailList(
+      emailList.map((emailmap) =>
+        email.email === emailmap.email
+          ? { ...emailmap, isPrimary: email.email === emailmap.email }
+          : { ...emailmap, isPrimary: false }
+      )
+    );
+    return formMethods.setValue(
+      "emails",
+      emailList.map((emailmap) =>
+        email.email === emailmap.email
+          ? { ...email, isPrimary: email.email === emailmap.email }
+          : { ...emailmap, isPrimary: false }
+      ),
+      { shouldDirty: true }
+    );
+  };
+
+  const deleteEmail = (email: Emails) => {
+    setEmailList(emailList.filter((emailmap) => email.email !== emailmap.email));
+    return formMethods.setValue(
+      "emails",
+      emailList.filter((emailmap) => email.email !== emailmap.email),
+      { shouldDirty: true }
+    );
+  };
+
+  useLayoutEffect(() => {
+    if (emailList.length > 0) {
+      formMethods.setValue("emails", emailList, { shouldDirty: true });
+    }
+  }, [formMethods, emailList]);
 
   return (
     <Form form={formMethods} handleSubmit={onSubmit}>
@@ -372,9 +440,112 @@ const ProfileForm = ({
       <div className="mt-8">
         <TextField label={t("full_name")} {...formMethods.register("name")} />
       </div>
+
       <div className="mt-8">
-        <TextField label={t("email")} hint={t("change_email_hint")} {...formMethods.register("email")} />
+        <div className="mb-1">{t("email")}</div>
+        {defaultValues.emails.length === 0 && <EmailListCard email={formMethods.getValues("email") || ""} />}
       </div>
+
+      <div className="bg-default w-full sm:mx-0 xl:mt-0">
+        {emailList.map((email) => (
+          <EmailListCard
+            email={email.email}
+            key={email.email}
+            isVerified={email.isVerified}
+            isPrimary={email.isPrimary}
+            actions={
+              <Dropdown>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    StartIcon={FiMoreHorizontal}
+                    variant="icon"
+                    className="!h-0 min-h-[30px] min-w-[30px] rounded-lg "
+                    color="secondary"
+                  />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem>
+                    <DropdownItem
+                      type="button"
+                      color="destructive"
+                      disabled={email.isPrimary}
+                      StartIcon={FiFlag}
+                      onClick={() => {
+                        makePrimaryEmail(email);
+                      }}>
+                      {t("Make Primary")}
+                    </DropdownItem>
+
+                    <DropdownItem
+                      type="button"
+                      color="destructive"
+                      StartIcon={FiTrash}
+                      disabled={email.isPrimary}
+                      onClick={() => deleteEmail(email)}>
+                      {t("delete")}
+                    </DropdownItem>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </Dropdown>
+            }
+          />
+        ))}
+      </div>
+
+      {/*Add More Email Addresses */}
+      <Button StartIcon={FiPlus} className="mt-1" color="minimal" onClick={() => setAddEmailOpen(true)}>
+        {t("add_email")}
+      </Button>
+
+      <Dialog open={addEmailOpen} onOpenChange={setAddEmailOpen}>
+        {isNextStep ? (
+          <DialogContent>
+            <div className="grid grid-cols-[12%_88%]">
+              <div className=" bg-emphasis flex h-10 w-10 items-center justify-center rounded-full  p-[6px]">
+                <FiMail className="h-4 w-4" />
+              </div>
+              <DialogHeader title={t("confirm_email")} subtitle={t("email_confirmation", { email: email })} />
+            </div>
+            <DialogFooter>
+              <Button
+                color="primary"
+                onClick={() => {
+                  setAddEmailOpen(false);
+                  setEmailList([...emailList, { email: email, isVerified: false, isPrimary: false }]);
+                }}>
+                {t("done")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        ) : (
+          <DialogContent className="p-0">
+            <div>
+              <div className="px-8 pt-8 pb-2">
+                <DialogHeader title={t("add_email")} subtitle={t("confirm_add_email")} />
+                <TextField
+                  label={t("email_address")}
+                  placeholder="john.doe@example.com"
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+              <hr className="border-subtle mt-4" />
+              <div className="px-8 pb-7">
+                <DialogFooter>
+                  <DialogClose>{t("cancel")}</DialogClose>
+                  <Button
+                    color="primary"
+                    onClick={() => {
+                      setIsNextStep(true);
+                    }}>
+                    {t("add_email")}
+                  </Button>
+                </DialogFooter>
+              </div>
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
+
       <div className="mt-8">
         <Label>{t("about")}</Label>
         <Editor
